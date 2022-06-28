@@ -141,6 +141,8 @@ class VRTutorialWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
     # These connections ensure that whenever user changes some settings on the GUI, that is saved in the MRML scene
     # (in the selected parameter node).
     self.ui.createConnectionButton.connect('clicked(bool)', self.onSwitchVirtualRealityActivation)
+    self.ui.startTutorialButton.connect('clicked(bool)', self.onStartTutorial)
+
 
 
     # Make sure parameter node is initialized (needed for module reload)
@@ -282,6 +284,11 @@ class VRTutorialWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
     if not self.logic.slicerVRinstalled:
       self.ui.statusText.text = 'install SlicerVR extension'
 
+  def onStartTutorial(self):
+    # load scenario
+    self.logic.loadScenario()
+
+
 
 #
 # VRTutorialLogic
@@ -309,6 +316,10 @@ class VRTutorialLogic(ScriptedLoadableModuleLogic):
       self.vrLogic = slicer.modules.virtualreality.logic()
     except:
       self.slicerVRinstalled = False
+
+    # CREATE PATHS
+    self.modelsPath = slicer.modules.vrtutorial.path.replace("VRTutorial.py","") + 'Resources/Models/'
+    
 
 
   def setDefaultParameters(self, parameterNode):
@@ -348,6 +359,28 @@ class VRTutorialLogic(ScriptedLoadableModuleLogic):
       self.vrLogic.SetVirtualRealityActive(True)
 
       return True
+
+  
+  def loadScenario(self):
+    # load model and texture
+    try:
+      self.scenarioModel = slicer.util.getNode('ClinicalScenario_1')
+    except:
+      self.scenarioModel = slicer.util.loadModel(self.modelsPath + '/ClinicalScenario/ClinicalScenario_1.obj')
+    try:
+      self.scenarioTexture = slicer.util.getNode('ClinicalScenario1_Texture')
+    except:
+      self.scenarioTexture = slicer.util.loadVolume(self.modelsPath + '/ClinicalScenario/ClinicalScenario1_Texture.png')
+    # apply texture
+    self.showTextureOnModel(self.scenarioModel, self.scenarioTexture)
+
+  def showTextureOnModel(self, modelNode, textureImageNode):
+    modelDisplayNode = modelNode.GetDisplayNode()
+    modelDisplayNode.SetBackfaceCulling(0)
+    textureImageFlipVert = vtk.vtkImageFlip()
+    textureImageFlipVert.SetFilteredAxis(1)
+    textureImageFlipVert.SetInputConnection(textureImageNode.GetImageDataConnection())
+    modelDisplayNode.SetTextureImageDataConnection(textureImageFlipVert.GetOutputPort())
 
 #
 # VRTutorialTest
