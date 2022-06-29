@@ -101,6 +101,7 @@ class VRTutorialWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
     self.logic = None
     self._parameterNode = None
     self._updatingGUIFromParameterNode = False
+    self.tutorialPart = 1
 
 
   def setup(self):
@@ -147,6 +148,7 @@ class VRTutorialWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
     # Settings
     self.ui.controllersVisibilityCheckBox.toggled.connect(self.onControllerVisibilityCheckBoxClicked)
     self.ui.resetVRViewButton.connect('clicked(bool)', self.onResetVRViewButtonClicked)
+
 
 
 
@@ -282,7 +284,7 @@ class VRTutorialWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
       self.ui.statusText.text = label
       self.ui.createConnectionButton.setText("Deactivate VR")
       self.ui.startTutorialButton.enabled = True
-      self.logic.loadAvatars()
+      self.logic.loadModels()
       self.logic.applyTransformsToAvatars()
     else:
       self.ui.createConnectionButton.setText("Activate VR")
@@ -300,6 +302,8 @@ class VRTutorialWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
   def onStartTutorial(self):
     print("starting tutorial")
     self.logic.applyTransformsToAvatars()
+    if self.tutorialPart == 1:
+      self.logic.startPart1()
     
   def onControllerVisibilityCheckBoxClicked(self):
     logging.debug('change controller visibility')
@@ -408,9 +412,8 @@ class VRTutorialLogic(ScriptedLoadableModuleLogic):
     # make it non selectable
     self.scenarioModel.SelectableOff()
 
-  def loadAvatars(self):
-    print("loading avatars...")
-    # load models
+  def loadModels(self):
+    # load avatars
     try:
       self.headModel = slicer.util.getNode('Head')
     except:
@@ -426,6 +429,22 @@ class VRTutorialLogic(ScriptedLoadableModuleLogic):
     except:
       self.handLeftModel = slicer.util.loadModel(self.modelsPath + '/Avatar/Hand_Left.vtk')
       self.handLeftModel.GetModelDisplayNode().SetColor([1,0,0])
+    
+    # load interaction models
+    try:
+      self.cylinderModel = slicer.util.getNode('CylinderModel')
+    except:
+      self.cylinderModel = slicer.util.loadModel(self.modelsPath + 'CylinderModel.vtk')
+      # self.cylinderModel.GetModelDisplayNode().SetColor([1,0,0])
+      self.cylinderModel.GetModelDisplayNode().SetOpacity(0)
+
+    # load text model
+    try:
+      self.successTextModel = slicer.util.getNode('SuccessTextModel')
+    except:
+      self.successTextModel = slicer.util.loadModel(self.modelsPath + 'SuccessTextModel.stl')
+      self.successTextModel.GetModelDisplayNode().SetColor([0,1,0])
+      self.successTextModel.GetModelDisplayNode().SetOpacity(0)
 
   def applyTransformsToAvatars(self):
     # apply transforms
@@ -495,6 +514,90 @@ class VRTutorialLogic(ScriptedLoadableModuleLogic):
 
   def resetVRView(self):
     slicer.modules.virtualreality.viewWidget().updateViewFromReferenceViewCamera()
+
+  def findMeshCollision(self, node1, node2, verbose=False ):
+    '''
+        Find Mesh Collision
+            This function finds a collision or intersection between two surface meshesu=fluvio_lobo
+    '''
+    #
+    # Variables
+    collisionDetection = vtk.vtkCollisionDetectionFilter()
+    numberOfCollisions = 0
+    collisionFlag = False
+    #
+    # Collision Detection
+    node1ToWorldTransformMatrix = vtk.vtkMatrix4x4()
+    node2ToWorldTransformMatrix = vtk.vtkMatrix4x4()
+    node1ParentTransformNode = node1.GetParentTransformNode()
+    node2ParentTransformNode = node2.GetParentTransformNode()
+    if node1ParentTransformNode != None:
+        node1ParentTransformNode.GetMatrixTransformToWorld(node1ToWorldTransformMatrix)
+    if node2ParentTransformNode != None:
+        node2ParentTransformNode.GetMatrixTransformToWorld(node2ToWorldTransformMatrix)
+    #
+    collisionDetection.SetInputData( 0, node1.GetPolyData() )
+    collisionDetection.SetInputData( 1, node2.GetPolyData() )
+    collisionDetection.SetMatrix( 0, node1ToWorldTransformMatrix )
+    collisionDetection.SetMatrix( 1, node2ToWorldTransformMatrix )
+    collisionDetection.SetBoxTolerance( 0.0 )
+    collisionDetection.SetCellTolerance( 0.0 )
+    collisionDetection.SetNumberOfCellsPerNode( 2 )
+    collisionDetection.Update()
+    #
+    numberOfCollisions = collisionDetection.GetNumberOfContacts()
+    if numberOfCollisions > 0:
+        collisionFlag = True
+    else:
+        collisionFlag = False
+    #
+    # Status Verbose
+    if(verbose):
+        if(collisionFlag == True ):
+            print( "{} Collisions Detected".format( numberOfCollisions ) )
+        else:
+            print( "No Collisions Detected" )
+    #
+    # Return;
+    return collisionFlag, numberOfCollisions
+
+  def startPart1(self):
+    # show cylinder
+    self.cylinderModel.GetModelDisplayNode().SetOpacity(0.3)
+    # add observer to detect collision of head with cylinder
+    self.addObserverToHMDTransformNode()
+
+
+  #------------------------------------------------------------------------------
+  def addObserverToHMDTransformNode(self):
+    """
+    Add observer to master sequence node.
+    """
+    try:
+      self.observerID = self.HMDTransform.AddObserver(slicer.vtkMRMLTransformableNode.TransformModifiedEvent, self.detectCylinderCollision)
+    except:
+      logging.error('Error adding observer to HMD transform node...')    
+
+  #------------------------------------------------------------------------------
+  def removeObserverToHMDTransformNode(self):
+    """
+    Remove observer from master sequence node.
+    """
+    if self.observerID:
+      try:
+        self.HMDTransform.RemoveObserver(self.observerID)
+      except:
+        logging.error('Error removing observer from HMD transform node...')   
+
+  #------------------------------------------------------------------------------
+  def detectCylinderCollision(self, unused1=None, unused2=None):
+    collisionDetected, numberOfCollisions = self.findMeshCollision(self.headModel, self.cylinderModel, False)
+    if (collisionDetected):
+      print("Collision detected!")
+      self.successTextModel.SetAndObserveTransformNodeID(self.HMDTransform.GetID())
+      self.successTextModel.GetModelDisplayNode().SetOpacity(1)
+      self.removeObserverToHMDTransformNode()
+
 
 #
 # VRTutorialTest

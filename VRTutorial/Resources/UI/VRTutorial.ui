@@ -48,7 +48,7 @@
         </property>
        </widget>
       </item>
-      <item row="4" column="0">
+      <item row="5" column="0">
        <widget class="QCheckBox" name="checkBox">
         <property name="text">
          <string>HTC Vive</string>
@@ -58,27 +58,62 @@
         </property>
        </widget>
       </item>
-      <item row="5" column="0">
+      <item row="6" column="0">
        <widget class="QCheckBox" name="checkBox_2">
         <property name="text">
          <string>Oculus</string>
         </property>
        </widget>
       </item>
-      <item row="6" column="0">
+      <item row="7" column="0">
        <widget class="QCheckBox" name="checkBox_3">
         <property name="text">
          <string>HP</string>
         </property>
        </widget>
       </item>
-      <item row="7" column="0" colspan="2">
+      <item row="8" column="0" colspan="2">
        <widget class="QPushButton" name="startTutorialButton">
         <property name="enabled">
          <bool>false</bool>
         </property>
         <property name="text">
          <string>Start Tutorial</string>
+        </property>
+       </widget>
+      </item>
+      <item row="4" column="0">
+       <widget class="QLabel" name="label">
+        <property name="text">
+         <string>Choose VR hardware:</string>
+        </property>
+       </widget>
+      </item>
+      <item row="11" column="0">
+       <widget class="QLabel" name="resultLabel">
+        <property name="text">
+         <string>Result:</string>
+        </property>
+       </widget>
+      </item>
+      <item row="11" column="1">
+       <widget class="QLabel" name="resultText">
+        <property name="text">
+         <string/>
+        </property>
+       </widget>
+      </item>
+      <item row="9" column="0">
+       <widget class="QPushButton" name="previousButton">
+        <property name="text">
+         <string>Previous</string>
+        </property>
+       </widget>
+      </item>
+      <item row="9" column="1">
+       <widget class="QPushButton" name="nextButton">
+        <property name="text">
+         <string>Next</string>
         </property>
        </widget>
       </item>
@@ -95,6 +130,9 @@
        <widget class="QCheckBox" name="controllersVisibilityCheckBox">
         <property name="text">
          <string>Controllers visible</string>
+        </property>
+        <property name="checked">
+         <bool>false</bool>
         </property>
        </widget>
       </item>
