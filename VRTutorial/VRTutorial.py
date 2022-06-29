@@ -145,7 +145,7 @@ class VRTutorialWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
     self.ui.startTutorialButton.connect('clicked(bool)', self.onStartTutorial)
     
     # Settings
-    self.ui.controllersVisibilityCheckBox.connect('clicked(bool)', self.onControllerVisibilityCheckBoxClicked)
+    self.ui.controllersVisibilityCheckBox.toggled.connect(self.onControllerVisibilityCheckBoxClicked)
     self.ui.resetVRViewButton.connect('clicked(bool)', self.onResetVRViewButtonClicked)
 
 
@@ -301,14 +301,14 @@ class VRTutorialWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
   def onControllerVisibilityCheckBoxClicked(self):
     logging.debug('change controller visibility')
     if self.ui.controllersVisibilityCheckBox.checked:
-      self.logic.changeControllerVisibility(False)
-    else:
       self.logic.changeControllerVisibility(True)
+    else:
+      self.logic.changeControllerVisibility(False)
 
   def onResetVRViewButtonClicked(self):
     logging.debug('reset VR view')
-    zoomOut = 100
-    self.logic.resetVRView(zoomOut)
+    # zoomOut = 100
+    self.logic.resetVRView()
 
 
 #
@@ -451,48 +451,8 @@ class VRTutorialLogic(ScriptedLoadableModuleLogic):
     vrViewNode = self.vrLogic.GetVirtualRealityViewNode()
     vrViewNode.SetControllerModelsVisible(display)
 
-  def resetVRView(self, zoomOut):
-    vrLogic = slicer.modules.virtualreality.logic()
-    vrViewNode = vrLogic.GetVirtualRealityViewNode()
-    HMD_transform = vrViewNode.GetHMDTransformNode()
-    if not HMD_transform:
-      print('Unable to get HMD transform')
-      return
-    try:
-      modelHMDTransform = slicer.util.getNode('modelHMDTransform')
-    except:
-      modelHMDTransform = slicer.vtkMRMLLinearTransformNode()
-      modelHMDTransform.SetName('modelHMDTransform')
-      slicer.mrmlScene.AddNode(modelHMDTransform)
-    # get the translation components from the HMD transform
-    t_r = HMD_transform.GetMatrixTransformToParent().GetElement(0,3)
-    t_a = HMD_transform.GetMatrixTransformToParent().GetElement(1,3)
-    t_s = HMD_transform.GetMatrixTransformToParent().GetElement(2,3)
-    cam = vrCamera()
-    modelTransform = vtk.vtkMatrix4x4()
-    modelHMDTransform.GetMatrixTransformToParent(modelTransform)
-    modelTransform.Identity()
-    modelTransform.SetElement(0, 3, t_r)
-    modelTransform.SetElement(1, 3, t_a - zoomOut)
-    modelTransform.SetElement(2, 3, t_s - 40)
-    cam.SetModelTransformMatrix(modelTransform)
-    modelHMDTransform.SetMatrixTransformToParent(modelTransform)
-    # make the controllers coincide with the user (HMD) position in the VR scene
-    # clone the transform
-    nodeToClone = slicer.util.getNode('modelHMDTransform')
-    shNode = slicer.vtkMRMLSubjectHierarchyNode.GetSubjectHierarchyNode(slicer.mrmlScene)
-    itemIDToClone = shNode.GetItemByDataNode(nodeToClone)
-    clonedItemID = slicer.modules.subjecthierarchy.logic().CloneSubjectHierarchyItem(shNode, itemIDToClone)
-    viewControllersTransform = shNode.GetItemDataNode(clonedItemID)
-    # invert
-    viewControllersTransform.Inverse()
-    # make the controllers (forceps) observe that transform
-    leftControllerTransform = vrViewNode.GetLeftControllerTransformNode()
-    rightControllerTransform = vrViewNode.GetRightControllerTransformNode()
-    leftControllerTransform.SetAndObserveTransformNodeID(viewControllersTransform.GetID())
-    rightControllerTransform.SetAndObserveTransformNodeID(viewControllersTransform.GetID())
-
-
+  def resetVRView(self):
+    slicer.modules.virtualreality.viewWidget().updateViewFromReferenceViewCamera()
 
 #
 # VRTutorialTest
