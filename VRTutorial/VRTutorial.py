@@ -282,9 +282,11 @@ class VRTutorialWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
       self.ui.statusText.text = label
       self.ui.createConnectionButton.setText("Deactivate VR")
       self.ui.startTutorialButton.enabled = True
+      self.logic.loadAvatars()
+      self.logic.applyTransformsToAvatars()
     else:
       self.ui.createConnectionButton.setText("Activate VR")
-      self.ui.statusText.text = ''
+      self.ui.statusText.text = ''    
 
     if not self.logic.slicerVRinstalled:
       self.ui.statusText.text = 'install SlicerVR extension'
@@ -297,6 +299,7 @@ class VRTutorialWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
 
   def onStartTutorial(self):
     print("starting tutorial")
+    self.logic.applyTransformsToAvatars()
     
   def onControllerVisibilityCheckBoxClicked(self):
     logging.debug('change controller visibility')
@@ -404,6 +407,45 @@ class VRTutorialLogic(ScriptedLoadableModuleLogic):
     self.showTextureOnModel(self.scenarioModel, self.scenarioTexture)
     # make it non selectable
     self.scenarioModel.SelectableOff()
+
+  def loadAvatars(self):
+    print("loading avatars...")
+    # load models
+    try:
+      self.headModel = slicer.util.getNode('Head')
+    except:
+      self.headModel = slicer.util.loadModel(self.modelsPath + '/Avatar/Head.vtk')
+      self.headModel.GetModelDisplayNode().SetColor([0.8549019607843137, 0.7450980392156863, 0.5725490196078431])
+    try:
+      self.handRightModel = slicer.util.getNode('Hand_Right')
+    except:
+      self.handRightModel = slicer.util.loadModel(self.modelsPath + '/Avatar/Hand_Right.vtk')
+      self.handRightModel.GetModelDisplayNode().SetColor([0,0,1])
+    try:
+      self.handLeftModel = slicer.util.getNode('Hand_Left')
+    except:
+      self.handLeftModel = slicer.util.loadModel(self.modelsPath + '/Avatar/Hand_Left.vtk')
+      self.handLeftModel.GetModelDisplayNode().SetColor([1,0,0])
+
+  def applyTransformsToAvatars(self):
+    # apply transforms
+    vrViewNode = self.vrLogic.GetVirtualRealityViewNode()
+    try:
+      self.HMDTransform = vrViewNode.GetHMDTransformNode()
+      self.headModel.SetAndObserveTransformNodeID(self.HMDTransform.GetID())
+    except:
+      print("unable to get HMD transform")
+    try:
+      self.RightControllerTransform = vrViewNode.GetRightControllerTransformNode()
+      self.handRightModel.SetAndObserveTransformNodeID(self.RightControllerTransform.GetID())
+    except:
+      print("unable to get Right controller transform")
+    try:
+      self.LeftControllerTransform = vrViewNode.GetLeftControllerTransformNode()
+      self.handLeftModel.SetAndObserveTransformNodeID(self.LeftControllerTransform.GetID())
+    except:
+      print("unable to get Left controller transform")
+
 
   def showTextureOnModel(self, modelNode, textureImageNode):
     modelDisplayNode = modelNode.GetDisplayNode()
