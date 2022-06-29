@@ -140,8 +140,13 @@ class VRTutorialWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
 
     # These connections ensure that whenever user changes some settings on the GUI, that is saved in the MRML scene
     # (in the selected parameter node).
+    self.ui.loadTutorialDataButton.connect('clicked(bool)', self.onLoadTutorialData)
     self.ui.createConnectionButton.connect('clicked(bool)', self.onSwitchVirtualRealityActivation)
     self.ui.startTutorialButton.connect('clicked(bool)', self.onStartTutorial)
+    
+    # Settings
+    self.ui.controllersVisibilityCheckBox.connect('clicked(bool)', self.onControllerVisibilityCheckBoxClicked)
+    self.ui.resetVRViewButton.connect('clicked(bool)', self.onResetVRViewButtonClicked)
 
 
 
@@ -284,10 +289,26 @@ class VRTutorialWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
     if not self.logic.slicerVRinstalled:
       self.ui.statusText.text = 'install SlicerVR extension'
 
-  def onStartTutorial(self):
+  def onLoadTutorialData(self):
     # load scenario
     self.logic.loadScenario()
+    self.logic.adjustViewpoint()
+    self.ui.createConnectionButton.enabled = True
 
+  def onStartTutorial(self):
+    print("starting tutorial")
+    
+  def onControllerVisibilityCheckBoxClicked(self):
+    logging.debug('change controller visibility')
+    if self.ui.controllersVisibilityCheckBox.checked:
+      self.logic.changeControllerVisibility(False)
+    else:
+      self.logic.changeControllerVisibility(True)
+
+  def onResetVRViewButtonClicked(self):
+    logging.debug('reset VR view')
+    zoomOut = 100
+    self.logic.resetVRView(zoomOut)
 
 
 #
@@ -319,6 +340,14 @@ class VRTutorialLogic(ScriptedLoadableModuleLogic):
 
     # CREATE PATHS
     self.modelsPath = slicer.modules.vrtutorial.path.replace("VRTutorial.py","") + 'Resources/Models/'
+    self.transformsPath = slicer.modules.vrtutorial.path.replace("VRTutorial.py","") + 'Resources/Transforms'
+
+    # Viewpoint module (SlicerIGT extension)
+    try:
+      import Viewpoint # Viewpoint Module must have been added to Slicer 
+      self.viewpointLogic = Viewpoint.ViewpointLogic()
+    except:
+      logging.error('ERROR: "Viewpoint" module was not found.')
     
 
 
@@ -373,6 +402,8 @@ class VRTutorialLogic(ScriptedLoadableModuleLogic):
       self.scenarioTexture = slicer.util.loadVolume(self.modelsPath + '/ClinicalScenario/ClinicalScenario1_Texture.png')
     # apply texture
     self.showTextureOnModel(self.scenarioModel, self.scenarioTexture)
+    # make it non selectable
+    self.scenarioModel.SelectableOff()
 
   def showTextureOnModel(self, modelNode, textureImageNode):
     modelDisplayNode = modelNode.GetDisplayNode()
@@ -381,6 +412,87 @@ class VRTutorialLogic(ScriptedLoadableModuleLogic):
     textureImageFlipVert.SetFilteredAxis(1)
     textureImageFlipVert.SetInputConnection(textureImageNode.GetImageDataConnection())
     modelDisplayNode.SetTextureImageDataConnection(textureImageFlipVert.GetOutputPort())
+
+  def adjustViewpoint(self):
+
+    self.scenarioViewPointTransform = self.loadTransformFromFile(self.transformsPath, 'StartCamera_1')
+
+    # Get 3D view node
+    threeDViewNode = slicer.app.layoutManager().threeDWidget(0).mrmlViewNode()
+
+    # Disable bulleye mode if active
+    bullseyeMode = self.viewpointLogic.getViewpointForViewNode(threeDViewNode).getCurrentMode()
+    if bullseyeMode:
+      self.viewpointLogic.getViewpointForViewNode(threeDViewNode).bullseyeStop()
+    
+    # Update viewpoint
+    if self.scenarioViewPointTransform:
+      self.viewpointLogic.getViewpointForViewNode(threeDViewNode).setViewNode(threeDViewNode)
+      self.viewpointLogic.getViewpointForViewNode(threeDViewNode).bullseyeSetTransformNode(self.scenarioViewPointTransform)
+      self.viewpointLogic.getViewpointForViewNode(threeDViewNode).bullseyeStart()
+      self.viewpointLogic.getViewpointForViewNode(threeDViewNode).bullseyeStop()
+
+  def loadTransformFromFile(self, transformFilePath, transformFileName):
+    try:
+        node = slicer.util.getNode(transformName)
+    except:
+        try:
+          node = slicer.util.loadTransform(transformFilePath +  '/' + transformFileName + '.h5')
+          print(transformFileName + ' transform loaded')
+        except:
+          node=slicer.vtkMRMLLinearTransformNode()
+          node.SetName(transformFileName)
+          slicer.mrmlScene.AddNode(node)
+          logging.error('ERROR: ' + transformFileName + ' transform not found in path. Creating node as identity...')
+    return node
+    
+  def changeControllerVisibility(self, display):
+    self.vrLogic.SetVirtualRealityConnected(True)    
+    vrViewNode = self.vrLogic.GetVirtualRealityViewNode()
+    vrViewNode.SetControllerModelsVisible(display)
+
+  def resetVRView(self, zoomOut):
+    vrLogic = slicer.modules.virtualreality.logic()
+    vrViewNode = vrLogic.GetVirtualRealityViewNode()
+    HMD_transform = vrViewNode.GetHMDTransformNode()
+    if not HMD_transform:
+      print('Unable to get HMD transform')
+      return
+    try:
+      modelHMDTransform = slicer.util.getNode('modelHMDTransform')
+    except:
+      modelHMDTransform = slicer.vtkMRMLLinearTransformNode()
+      modelHMDTransform.SetName('modelHMDTransform')
+      slicer.mrmlScene.AddNode(modelHMDTransform)
+    # get the translation components from the HMD transform
+    t_r = HMD_transform.GetMatrixTransformToParent().GetElement(0,3)
+    t_a = HMD_transform.GetMatrixTransformToParent().GetElement(1,3)
+    t_s = HMD_transform.GetMatrixTransformToParent().GetElement(2,3)
+    cam = vrCamera()
+    modelTransform = vtk.vtkMatrix4x4()
+    modelHMDTransform.GetMatrixTransformToParent(modelTransform)
+    modelTransform.Identity()
+    modelTransform.SetElement(0, 3, t_r)
+    modelTransform.SetElement(1, 3, t_a - zoomOut)
+    modelTransform.SetElement(2, 3, t_s - 40)
+    cam.SetModelTransformMatrix(modelTransform)
+    modelHMDTransform.SetMatrixTransformToParent(modelTransform)
+    # make the controllers coincide with the user (HMD) position in the VR scene
+    # clone the transform
+    nodeToClone = slicer.util.getNode('modelHMDTransform')
+    shNode = slicer.vtkMRMLSubjectHierarchyNode.GetSubjectHierarchyNode(slicer.mrmlScene)
+    itemIDToClone = shNode.GetItemByDataNode(nodeToClone)
+    clonedItemID = slicer.modules.subjecthierarchy.logic().CloneSubjectHierarchyItem(shNode, itemIDToClone)
+    viewControllersTransform = shNode.GetItemDataNode(clonedItemID)
+    # invert
+    viewControllersTransform.Inverse()
+    # make the controllers (forceps) observe that transform
+    leftControllerTransform = vrViewNode.GetLeftControllerTransformNode()
+    rightControllerTransform = vrViewNode.GetRightControllerTransformNode()
+    leftControllerTransform.SetAndObserveTransformNodeID(viewControllersTransform.GetID())
+    rightControllerTransform.SetAndObserveTransformNodeID(viewControllersTransform.GetID())
+
+
 
 #
 # VRTutorialTest
