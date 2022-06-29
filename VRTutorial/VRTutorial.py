@@ -148,7 +148,8 @@ class VRTutorialWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
     # Settings
     self.ui.controllersVisibilityCheckBox.toggled.connect(self.onControllerVisibilityCheckBoxClicked)
     self.ui.resetVRViewButton.connect('clicked(bool)', self.onResetVRViewButtonClicked)
-
+    self.ui.nextButton.connect('clicked(bool)', self.onNextButtonClicked)
+    self.ui.previousButton.connect('clicked(bool)', self.onPreviousButtonClicked)
 
 
 
@@ -317,6 +318,11 @@ class VRTutorialWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
     # zoomOut = 100
     self.logic.resetVRView()
 
+  def onPreviousButtonClicked(self):
+    self.logic.hideSuccessMessage()
+
+  def onNextButtonClicked(self):
+    self.logic.hideSuccessMessage()
 
 #
 # VRTutorialLogic
@@ -412,6 +418,7 @@ class VRTutorialLogic(ScriptedLoadableModuleLogic):
     # make it non selectable
     self.scenarioModel.SelectableOff()
 
+
   def loadModels(self):
     # load avatars
     try:
@@ -446,6 +453,7 @@ class VRTutorialLogic(ScriptedLoadableModuleLogic):
       self.successTextModel.GetModelDisplayNode().SetColor([0,1,0])
       self.successTextModel.GetModelDisplayNode().SetOpacity(0)
 
+
   def applyTransformsToAvatars(self):
     # apply transforms
     vrViewNode = self.vrLogic.GetVirtualRealityViewNode()
@@ -474,6 +482,7 @@ class VRTutorialLogic(ScriptedLoadableModuleLogic):
     textureImageFlipVert.SetInputConnection(textureImageNode.GetImageDataConnection())
     modelDisplayNode.SetTextureImageDataConnection(textureImageFlipVert.GetOutputPort())
 
+
   def adjustViewpoint(self):
 
     self.scenarioViewPointTransform = self.loadTransformFromFile(self.transformsPath, 'StartCamera_1')
@@ -493,6 +502,7 @@ class VRTutorialLogic(ScriptedLoadableModuleLogic):
       self.viewpointLogic.getViewpointForViewNode(threeDViewNode).bullseyeStart()
       self.viewpointLogic.getViewpointForViewNode(threeDViewNode).bullseyeStop()
 
+
   def loadTransformFromFile(self, transformFilePath, transformFileName):
     try:
         node = slicer.util.getNode(transformName)
@@ -507,13 +517,20 @@ class VRTutorialLogic(ScriptedLoadableModuleLogic):
           logging.error('ERROR: ' + transformFileName + ' transform not found in path. Creating node as identity...')
     return node
     
+
   def changeControllerVisibility(self, display):
     self.vrLogic.SetVirtualRealityConnected(True)    
     vrViewNode = self.vrLogic.GetVirtualRealityViewNode()
     vrViewNode.SetControllerModelsVisible(display)
 
+
   def resetVRView(self):
     slicer.modules.virtualreality.viewWidget().updateViewFromReferenceViewCamera()
+
+
+  def hideSuccessMessage(self):
+    self.successTextModel.GetModelDisplayNode().SetOpacity(0)
+
 
   def findMeshCollision(self, node1, node2, verbose=False ):
     '''
