@@ -277,6 +277,10 @@ class VRTutorialWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
     self._parameterNode.EndModify(wasModified)
 
   def onSwitchVirtualRealityActivation(self):
+    modulesInstalled = self.logic.checkInstallationRequiredModules()
+    if not modulesInstalled:
+      self.ui.statusText.text = "Please install SlicerVR and IGT extensions"
+      return
     connected = self.logic.activateVirtualReality()
     if connected:
       # modify button text and show connection status
@@ -345,9 +349,10 @@ class VRTutorialLogic(ScriptedLoadableModuleLogic):
     ScriptedLoadableModuleLogic.__init__(self)
     self.vrEnabled = False
     self.threeDView = slicer.app.layoutManager().threeDWidget(0).threeDView()
-    self.slicerVRinstalled = True
+    self.slicerVRinstalled = False
     try:
       self.vrLogic = slicer.modules.virtualreality.logic()
+      self.slicerVRinstalled = True
     except:
       self.slicerVRinstalled = False
 
@@ -356,10 +361,13 @@ class VRTutorialLogic(ScriptedLoadableModuleLogic):
     self.transformsPath = slicer.modules.vrtutorial.path.replace("VRTutorial.py","") + 'Resources/Transforms'
 
     # Viewpoint module (SlicerIGT extension)
+    self.slicerIGTinstalled = False
     try:
       import Viewpoint # Viewpoint Module must have been added to Slicer 
       self.viewpointLogic = Viewpoint.ViewpointLogic()
+      self.slicerIGTinstalled = True
     except:
+      self.slicerIGTinstalled = False
       logging.error('ERROR: "Viewpoint" module was not found.')
     
 
@@ -372,6 +380,18 @@ class VRTutorialLogic(ScriptedLoadableModuleLogic):
       parameterNode.SetParameter("Threshold", "100.0")
     if not parameterNode.GetParameter("Invert"):
       parameterNode.SetParameter("Invert", "false")
+
+
+  def checkInstallationRequiredModules(self):
+    if not self.slicerIGTinstalled:
+      print("IGT extension missing")
+      return False
+    if not self.slicerVRinstalled:
+      print("SlicerVR extension missing")
+      return False
+    else:
+      print("All required modules are installed")
+      return True
 
 
   def activateVirtualReality(self):
