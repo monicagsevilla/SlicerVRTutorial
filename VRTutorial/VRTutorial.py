@@ -102,6 +102,12 @@ class VRTutorialWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
     self._parameterNode = None
     self._updatingGUIFromParameterNode = False
     self.tutorialPart = 1
+    self.info_display = False
+
+    self.instructionsPath = slicer.modules.vrtutorial.path.replace("VRTutorial.py","") + 'Resources/Instructions/'
+
+
+
 
 
   def setup(self):
@@ -115,10 +121,16 @@ class VRTutorialWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
     uiWidget = slicer.util.loadUI(self.resourcePath('UI/VRTutorial.ui'))
     self.layout.addWidget(uiWidget)
     self.ui = slicer.util.childWidgetVariables(uiWidget)
-
+    
+    #
+    # Setup view
+    #
     # show 3D View
     self.layoutManager= slicer.app.layoutManager()
-    self.layoutManager.setLayout(slicer.vtkMRMLLayoutNode.SlicerLayoutOneUp3DView)
+    # self.layoutManager.setLayout(slicer.vtkMRMLLayoutNode.SlicerLayoutOneUp3DView)
+    # set layout
+    self.setCustomLayout()
+    self.layoutManager.setLayout(self.customLayout_1_ID) # Set 3D only view layout
     # quit box and axis
     view = slicer.util.getNode('View1')
     view.SetBoxVisible(0)
@@ -133,6 +145,12 @@ class VRTutorialWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
     # in batch mode, without a graphical user interface.
     self.logic = VRTutorialLogic()
 
+    # Add controllers instructions image (HTC by default)
+    self.markerSelectedIconPixmap = qt.QPixmap(self.instructionsPath + 'HTCControllers.png')
+    self.ui.controllerInstructionsImage.setPixmap(self.markerSelectedIconPixmap)
+    self.ui.controllerInstructionsImage.scaledContents = True
+    self.ui.controllerInstructionsImage.visible = True
+
     # Connections
 
     # These connections ensure that we update parameter node when scene is closed
@@ -144,12 +162,18 @@ class VRTutorialWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
     self.ui.loadTutorialDataButton.connect('clicked(bool)', self.onLoadTutorialData)
     self.ui.createConnectionButton.connect('clicked(bool)', self.onSwitchVirtualRealityActivation)
     self.ui.startTutorialButton.connect('clicked(bool)', self.onStartTutorial)
-    
+    self.ui.showInstructionsButton.clicked.connect(self.onShowInstructionsButtonClicked)
+    self.ui.nextButton.connect('clicked(bool)', self.onNextButtonClicked)
+    self.ui.previousButton.connect('clicked(bool)', self.onPreviousButtonClicked)
+
     # Settings
     self.ui.controllersVisibilityCheckBox.toggled.connect(self.onControllerVisibilityCheckBoxClicked)
     self.ui.resetVRViewButton.connect('clicked(bool)', self.onResetVRViewButtonClicked)
-    self.ui.nextButton.connect('clicked(bool)', self.onNextButtonClicked)
-    self.ui.previousButton.connect('clicked(bool)', self.onPreviousButtonClicked)
+
+
+    self.ui.HTCRadioButton.connect('clicked(bool)', self.onControllerSelected)
+    self.ui.OculusRadioButton.connect('clicked(bool)', self.onControllerSelected)
+    self.ui.HPRadioButton.connect('clicked(bool)', self.onControllerSelected)
 
 
 
@@ -290,6 +314,7 @@ class VRTutorialWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
       self.ui.createConnectionButton.setText("Deactivate VR")
       self.ui.startTutorialButton.enabled = True
       self.logic.loadModels()
+      self.logic.loadInstructions()
       self.logic.applyTransformsToAvatars()
     else:
       self.ui.createConnectionButton.setText("Activate VR")
@@ -304,11 +329,86 @@ class VRTutorialWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
     self.logic.adjustViewpoint()
     self.ui.createConnectionButton.enabled = True
 
+
   def onStartTutorial(self):
     print("starting tutorial")
     self.logic.applyTransformsToAvatars()
     if self.tutorialPart == 1:
       self.logic.startPart1()
+
+  ## Layout
+  def setCustomLayout(self):
+      layoutLogic = self.layoutManager.layoutLogic()
+      customLayout_1 = ("<layout type=\"horizontal\">"
+      " <item>"
+      "  <view class=\"vtkMRMLViewNode\" singletontag=\"1\">"
+      "   <property name=\"viewlabel\" action=\"default\">1</property>"
+      "  </view>"
+      " </item>"
+      "</layout>")
+      customLayout_2 = ("<layout type=\"horizontal\" split=\"true\">"
+      " <item>"
+      "  <layout type=\"vertical\">"
+      "   <item>"
+      "    <view class=\"vtkMRMLSliceNode\" singletontag=\"Yellow\">"
+      "     <property name=\"orientation\" action=\"default\">Axial</property>"
+      "     <property name=\"viewlabel\" action=\"default\">Y</property>"
+      "     <property name=\"viewcolor\" action=\"default\">#F34A33</property>"
+      "    </view>"
+      "   </item>"
+      "   <item>"
+      "    <view class=\"vtkMRMLSliceNode\" singletontag=\"Green\">"
+      "     <property name=\"orientation\" action=\"default\">Coronal</property>"
+      "     <property name=\"viewlabel\" action=\"default\">G</property>"
+      "     <property name=\"viewcolor\" action=\"default\">#F34A33</property>"
+      "    </view>"
+      "   </item>"
+      "  </layout>"
+      " </item>"
+      " <item>"
+      "  <view class=\"vtkMRMLViewNode\" singletontag=\"1\">"
+      "  <property name=\"viewlabel\" action=\"default\">T</property>"
+      "  </view>"
+      " </item>"
+      "</layout>")
+      customLayout_3 = ("<layout type=\"horizontal\">"
+      " <item>"
+      "  <view class=\"vtkMRMLSliceNode\" singletontag=\"Red\">"
+      "   <property name=\"orientation\" action=\"default\">Axial</property>"
+      "     <property name=\"viewlabel\" action=\"default\">R</property>"
+      "     <property name=\"viewcolor\" action=\"default\">#F34A33</property>"
+      "  </view>"
+      " </item>"
+      "</layout>")
+      self.customLayout_1_ID=996
+      self.customLayout_2_ID=997
+      self.customLayout_3_ID=998
+      layoutLogic.GetLayoutNode().AddLayoutDescription(self.customLayout_1_ID, customLayout_1)
+      layoutLogic.GetLayoutNode().AddLayoutDescription(self.customLayout_2_ID, customLayout_2)
+      layoutLogic.GetLayoutNode().AddLayoutDescription(self.customLayout_3_ID, customLayout_3)
+
+  # INFORMATION
+  def onShowInstructionsButtonClicked(self):
+
+    # Update layout to show or hide info
+    if self.info_display:
+        self.layoutManager.setLayout(self.customLayout_1_ID) # Set 3D view only layout
+        self.info_display = False
+        self.ui.showInstructionsButton.setText('Show Instructions')
+    else:
+        self.layoutManager.setLayout(self.customLayout_3_ID) # Set red slice view layout
+        self.info_display = True
+        self.ui.showInstructionsButton.setText('Hide Instructions')
+        self.logic.red_logic.FitSliceToAll()
+        self.logic.red_logic.SetSliceOffset(0)
+
+  def onPreviousButtonClicked(self):
+    self.logic.hideSuccessMessage()
+    self.logic.changeInfoSlide('PREVIOUS')
+
+  def onNextButtonClicked(self):
+    self.logic.hideSuccessMessage()
+    self.logic.changeInfoSlide('NEXT')
     
   def onControllerVisibilityCheckBoxClicked(self):
     logging.debug('change controller visibility')
@@ -321,12 +421,28 @@ class VRTutorialWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
     logging.debug('reset VR view')
     # zoomOut = 100
     self.logic.resetVRView()
+    
 
-  def onPreviousButtonClicked(self):
-    self.logic.hideSuccessMessage()
+  def onControllerSelected(self):
 
-  def onNextButtonClicked(self):
-    self.logic.hideSuccessMessage()
+    if self.ui.HTCRadioButton.isChecked():
+      self.controllerSelectedIconPixmap = qt.QPixmap(self.instructionsPath + 'HTCControllers.png')
+      self.ui.controllerInstructionsImage.setPixmap(self.controllerSelectedIconPixmap)
+      self.ui.controllerInstructionsImage.scaled()
+      self.controllerSelected = "HTC"
+
+    if self.ui.OculusRadioButton.isChecked():
+      self.controllerSelectedIconPixmap = qt.QPixmap(self.instructionsPath + 'OculusControllers.png')
+      self.ui.controllerInstructionsImage.setPixmap(self.controllerSelectedIconPixmap)
+      self.ui.controllerInstructionsImage.scaled()
+      self.controllerSelected = "Oculus"
+
+    if self.ui.HPRadioButton.isChecked():
+      self.controllerSelectedIconPixmap = qt.QPixmap(self.instructionsPath + '/HPControllers.png')
+      self.ui.controllerInstructionsImage.setPixmap(self.controllerSelectedIconPixmap)
+      self.ui.controllerInstructionsImage.scaled()
+      self.controllerSelected = "HP"
+
 
 #
 # VRTutorialLogic
@@ -349,6 +465,7 @@ class VRTutorialLogic(ScriptedLoadableModuleLogic):
     ScriptedLoadableModuleLogic.__init__(self)
     self.vrEnabled = False
     self.threeDView = slicer.app.layoutManager().threeDWidget(0).threeDView()
+    self.instructionsImagesVisible = False
     self.slicerVRinstalled = False
     try:
       self.vrLogic = slicer.modules.virtualreality.logic()
@@ -358,7 +475,8 @@ class VRTutorialLogic(ScriptedLoadableModuleLogic):
 
     # CREATE PATHS
     self.modelsPath = slicer.modules.vrtutorial.path.replace("VRTutorial.py","") + 'Resources/Models/'
-    self.transformsPath = slicer.modules.vrtutorial.path.replace("VRTutorial.py","") + 'Resources/Transforms'
+    self.transformsPath = slicer.modules.vrtutorial.path.replace("VRTutorial.py","") + 'Resources/Transforms/'
+    self.instructionsPath = slicer.modules.vrtutorial.path.replace("VRTutorial.py","") + 'Resources/Instructions/'
 
     # Viewpoint module (SlicerIGT extension)
     self.slicerIGTinstalled = False
@@ -369,6 +487,9 @@ class VRTutorialLogic(ScriptedLoadableModuleLogic):
     except:
       self.slicerIGTinstalled = False
       logging.error('ERROR: "Viewpoint" module was not found.')
+
+    # Info
+    self.red_logic = slicer.app.layoutManager().sliceWidget("Red").sliceLogic()
     
 
 
@@ -444,17 +565,17 @@ class VRTutorialLogic(ScriptedLoadableModuleLogic):
     try:
       self.headModel = slicer.util.getNode('Head')
     except:
-      self.headModel = slicer.util.loadModel(self.modelsPath + '/Avatar/Head.vtk')
+      self.headModel = slicer.util.loadModel(self.modelsPath + 'Avatar/Head.vtk')
       self.headModel.GetModelDisplayNode().SetColor([0.8549019607843137, 0.7450980392156863, 0.5725490196078431])
     try:
       self.handRightModel = slicer.util.getNode('Hand_Right')
     except:
-      self.handRightModel = slicer.util.loadModel(self.modelsPath + '/Avatar/Hand_Right.vtk')
+      self.handRightModel = slicer.util.loadModel(self.modelsPath + 'Avatar/Hand_Right.vtk')
       self.handRightModel.GetModelDisplayNode().SetColor([0,0,1])
     try:
       self.handLeftModel = slicer.util.getNode('Hand_Left')
     except:
-      self.handLeftModel = slicer.util.loadModel(self.modelsPath + '/Avatar/Hand_Left.vtk')
+      self.handLeftModel = slicer.util.loadModel(self.modelsPath + 'Avatar/Hand_Left.vtk')
       self.handLeftModel.GetModelDisplayNode().SetColor([1,0,0])
     
     # load interaction models
@@ -528,8 +649,7 @@ class VRTutorialLogic(ScriptedLoadableModuleLogic):
         node = slicer.util.getNode(transformName)
     except:
         try:
-          node = slicer.util.loadTransform(transformFilePath +  '/' + transformFileName + '.h5')
-          print(transformFileName + ' transform loaded')
+          node = slicer.util.loadTransform(transformFilePath + transformFileName + '.h5')
         except:
           node=slicer.vtkMRMLLinearTransformNode()
           node.SetName(transformFileName)
@@ -597,6 +717,30 @@ class VRTutorialLogic(ScriptedLoadableModuleLogic):
     #
     # Return;
     return collisionFlag, numberOfCollisions
+
+
+  def loadInstructions(self):
+    # Load instructions images
+    try:
+        self.instructionsImageVolume = slicer.util.getNode('Slide1')
+    except:
+      try:
+        self.instructionsImageVolume = slicer.util.loadVolume(self.instructionsPath + 'Slides/Slide1.PNG')
+        self.red_logic.SetSliceOffset(0)
+        self.red_logic.FitSliceToAll()
+      except:
+        logging.error('ERROR: Instructions files could not be loaded...')
+
+
+  def changeInfoSlide(self, directionID):
+
+    # Change slice offset
+    if directionID == 'PREVIOUS':
+      self.red_logic.SetSliceOffset(0)
+    elif directionID == 'NEXT':
+      self.red_logic.SetSliceOffset(1)
+
+
 
   def startPart1(self):
     # show cylinder
