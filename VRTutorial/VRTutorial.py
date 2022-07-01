@@ -333,8 +333,12 @@ class VRTutorialWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
   def onStartTutorial(self):
     print("starting tutorial")
     self.logic.applyTransformsToAvatars()
+    self.onShowInstructionsButtonClicked()
     if self.tutorialPart == 1:
       self.logic.startPart1()
+    elif self.tutorialPart == 2:
+      self.logic.startPart2()
+
 
   ## Layout
   def setCustomLayout(self):
@@ -404,10 +408,12 @@ class VRTutorialWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
 
   def onPreviousButtonClicked(self):
     self.logic.hideSuccessMessage()
+    self.onShowInstructionsButtonClicked()
     self.logic.changeInfoSlide('PREVIOUS')
 
   def onNextButtonClicked(self):
     self.logic.hideSuccessMessage()
+    self.onShowInstructionsButtonClicked()
     self.logic.changeInfoSlide('NEXT')
     
   def onControllerVisibilityCheckBoxClicked(self):
@@ -585,6 +591,18 @@ class VRTutorialLogic(ScriptedLoadableModuleLogic):
       self.cylinderModel = slicer.util.loadModel(self.modelsPath + 'CylinderModel.vtk')
       # self.cylinderModel.GetModelDisplayNode().SetColor([1,0,0])
       self.cylinderModel.GetModelDisplayNode().SetOpacity(0)
+    try:
+      self.femurModel = slicer.util.getNode('femurModel')
+    except:
+      self.femurModel = slicer.util.loadModel(self.modelsPath + 'femurModel.vtk')
+      self.femurModel.GetModelDisplayNode().SetColor([0.94,0.84,0.57])
+      self.femurModel.GetModelDisplayNode().SetOpacity(0)
+    try:
+      self.femurModelCopy = slicer.util.getNode('femurModelCopy')
+    except:
+      self.femurModelCopy = slicer.util.loadModel(self.modelsPath + 'femurModelCopy.vtk')
+      self.femurModelCopy.GetModelDisplayNode().SetColor([0.94,0.84,0.57])
+      self.femurModelCopy.GetModelDisplayNode().SetOpacity(0)
 
     # load text model
     try:
@@ -733,18 +751,29 @@ class VRTutorialLogic(ScriptedLoadableModuleLogic):
 
 
   def changeInfoSlide(self, directionID):
-
     # Change slice offset
     if directionID == 'PREVIOUS':
       self.red_logic.SetSliceOffset(0)
+      self.startPart1()
     elif directionID == 'NEXT':
       self.red_logic.SetSliceOffset(1)
+      self.startPart2()
 
 
 
   def startPart1(self):
     # show cylinder
     self.cylinderModel.GetModelDisplayNode().SetOpacity(0.3)
+    self.femurModel.GetModelDisplayNode().SetOpacity(0)
+    self.femurModelCopy.GetModelDisplayNode().SetOpacity(0)
+    # add observer to detect collision of head with cylinder
+    self.addObserverToHMDTransformNode()
+
+  def startPart2(self):
+    # show femur
+    self.femurModel.GetModelDisplayNode().SetOpacity(1)
+    self.femurModelCopy.GetModelDisplayNode().SetOpacity(0.6)
+    self.cylinderModel.GetModelDisplayNode().SetOpacity(0)
     # add observer to detect collision of head with cylinder
     self.addObserverToHMDTransformNode()
 
